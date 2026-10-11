@@ -107,12 +107,13 @@ val playbackSpeedPatch = bytecodePatch(
             }
         }
 
+        // The controller setter is named setSpeed in 46.2.3 and obfuscated in 47.1.4; use the resolved method.
         OnRenderFirstFrameFingerprint.method.addInstructions(
             0,
             """
                 invoke-static {}, Lapp/morphe/extension/tiktok/speed/PlaybackSpeedPatch;->getPlaybackSpeed()F
                 move-result v0
-                invoke-virtual {p0, v0}, Lcom/ss/android/ugc/aweme/feed/controller/PlayerController;->setSpeed(F)V
+                invoke-virtual {p0, v0}, ${controllerSetSpeed.definingClass}->${controllerSetSpeed.name}(F)V
             """,
         )
     }
