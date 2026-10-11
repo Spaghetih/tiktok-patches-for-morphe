@@ -29,6 +29,7 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 private const val EXTENSION_CLASS_DESCRIPTOR = "Lapp/morphe/extension/tiktok/download/DownloadsPatch;"
 private const val STICKER_EXTENSION_CLASS_DESCRIPTOR = "Lapp/morphe/extension/tiktok/download/StickerGallerySaver;"
 private const val FILENAME_FORMATTER_CLASS_DESCRIPTOR = "Lapp/morphe/extension/tiktok/download/DownloadFilenameFormatter;"
+private const val STAGED_IMAGE_CLASS_DESCRIPTOR = "Lapp/morphe/extension/tiktok/download/StagedImageNormalizer;"
 
 @Suppress("unused")
 val downloadsPatch = bytecodePatch(
@@ -341,12 +342,19 @@ val downloadsPatch = bytecodePatch(
         }
 
         // Image posts use a direct media-copy helper instead of the ordinary photo wrapper.
+        // Parameters: (Context, staged file path, display name, isVideo, mime type, flags).
+        // TikTok 47 stages the watermark-free photo-post images as HEIF/VVC files that
+        // gallery apps cannot open, so the staged file is re-encoded before the copy.
         ImagePostMediaCopyFingerprint.method.apply {
             addInstructions(
                 0,
                 """
                     invoke-static/range {p2 .. p2}, $FILENAME_FORMATTER_CLASS_DESCRIPTOR->consumeDestinationName(Ljava/lang/String;)Ljava/lang/String;
                     move-result-object p2
+                    invoke-static/range {p1 .. p3}, $STAGED_IMAGE_CLASS_DESCRIPTOR->normalize(Ljava/lang/String;Ljava/lang/String;Z)Ljava/lang/String;
+                    move-result-object p2
+                    invoke-static {p1, p4}, $STAGED_IMAGE_CLASS_DESCRIPTOR->mimeType(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+                    move-result-object p4
                 """,
             )
             findInstructionIndicesReversedOrThrow {
