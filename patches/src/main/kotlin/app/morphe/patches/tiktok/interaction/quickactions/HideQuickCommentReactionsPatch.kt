@@ -6,6 +6,7 @@ package app.morphe.patches.tiktok.interaction.quickactions
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patches.shared.compat.AppCompatibilities
@@ -31,6 +32,50 @@ val hideQuickCommentReactionsPatch = bytecodePatch(
             0,
             "invoke-static {}, " +
                 "Lapp/morphe/extension/tiktok/settings/SettingsStatus;->enableHideCommentQuickReactions()V",
+        )
+
+        // The experiment gate every exposed-emoji surface consults ("hide" polarity).
+        HideExposedEmojiExperimentFingerprint.method.apply {
+            implementation!!.instructions.withIndex()
+                .filter { it.value.opcode == Opcode.RETURN }
+                .map { it.index }
+                .asReversed()
+                .forEach { returnIndex ->
+                    val resultRegister = getInstruction<OneRegisterInstruction>(returnIndex).registerA
+                    addInstructions(
+                        returnIndex,
+                        """
+                            invoke-static {v$resultRegister}, $FEATURE_CONTROLS_DESCRIPTOR->overrideHideExposedEmojiGate(Z)Z
+                            move-result v$resultRegister
+                        """,
+                    )
+                }
+        }
+
+        // The mini panel can still be shown by the keyboard view model; block the show call itself.
+        HorizontalEmojiPanelShowFingerprint.method.addInstructionsWithLabels(
+            0,
+            """
+                invoke-static {}, $FEATURE_CONTROLS_DESCRIPTOR->hideQuickCommentEmoji()Z
+                move-result v0
+                if-eqz v0, :show_panel
+                return-void
+                :show_panel
+                nop
+            """,
+        )
+
+        // The detail page input binds its personalized quick-emoji row separately.
+        DetailBottomEmojiBindFingerprint.method.addInstructionsWithLabels(
+            0,
+            """
+                invoke-static {}, $FEATURE_CONTROLS_DESCRIPTOR->hideQuickCommentEmoji()Z
+                move-result v0
+                if-eqz v0, :bind_emoji
+                return-void
+                :bind_emoji
+                nop
+            """,
         )
 
         ExposedEmojiRowAllowedFingerprint.method.apply {
