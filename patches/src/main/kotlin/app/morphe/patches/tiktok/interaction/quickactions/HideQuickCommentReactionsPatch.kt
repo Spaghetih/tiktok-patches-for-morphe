@@ -6,11 +6,13 @@ package app.morphe.patches.tiktok.interaction.quickactions
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patches.shared.compat.AppCompatibilities
 import app.morphe.patches.tiktok.misc.extension.sharedExtensionPatch
 import app.morphe.patches.tiktok.misc.settings.SettingsStatusLoadFingerprint
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 
 private const val FEATURE_CONTROLS_DESCRIPTOR =
     "Lapp/morphe/extension/tiktok/featurecontrols/FeatureControls;"
@@ -22,7 +24,7 @@ val hideQuickCommentReactionsPatch = bytecodePatch(
     default = true,
 ) {
     dependsOn(sharedExtensionPatch)
-    compatibleWith(*AppCompatibilities.tiktok4623())
+    compatibleWith(*AppCompatibilities.tiktok4714())
 
     execute {
         SettingsStatusLoadFingerprint.method.addInstruction(
@@ -31,17 +33,18 @@ val hideQuickCommentReactionsPatch = bytecodePatch(
                 "Lapp/morphe/extension/tiktok/settings/SettingsStatus;->enableHideCommentQuickReactions()V",
         )
 
-        QuickCommentReactionGateFingerprint.method.apply {
+        ExposedEmojiRowAllowedFingerprint.method.apply {
             implementation!!.instructions.withIndex()
                 .filter { it.value.opcode == Opcode.RETURN }
                 .map { it.index }
                 .asReversed()
                 .forEach { returnIndex ->
+                    val resultRegister = getInstruction<OneRegisterInstruction>(returnIndex).registerA
                     addInstructions(
                         returnIndex,
                         """
-                            invoke-static {v0, p0}, $FEATURE_CONTROLS_DESCRIPTOR->overrideHideQuickCommentEmoji(ZI)Z
-                            move-result v0
+                            invoke-static {v$resultRegister}, $FEATURE_CONTROLS_DESCRIPTOR->overrideShowQuickCommentEmoji(Z)Z
+                            move-result v$resultRegister
                         """,
                     )
                 }

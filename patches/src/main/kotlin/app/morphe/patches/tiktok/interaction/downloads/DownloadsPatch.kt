@@ -40,7 +40,7 @@ val downloadsPatch = bytecodePatch(
 ) {
     dependsOn(sharedExtensionPatch)
 
-    compatibleWith(*AppCompatibilities.tiktok4623())
+    compatibleWith(*AppCompatibilities.tiktok4714())
 
     execute {
         SettingsStatusLoadFingerprint.method.addInstruction(
@@ -112,7 +112,11 @@ val downloadsPatch = bytecodePatch(
         }
 
         // Add local gallery saving to the comment sticker/image preview sheet.
-        StickerPreviewBinderFingerprint.method.apply {
+        val stickerBinder = StickerPreviewBinderFingerprint.method
+        val stickerBinderClass = stickerBinder.definingClass
+        val stickerBinderName = stickerBinder.name
+        val stickerPreviewModelType = stickerBinder.parameterTypes.first().toString()
+        stickerBinder.apply {
             val returnIndex = findInstructionIndicesReversedOrThrow { opcode == Opcode.RETURN_VOID }.first()
             addInstructions(
                 returnIndex,
@@ -127,9 +131,9 @@ val downloadsPatch = bytecodePatch(
             val bindCallIndices = implementation!!.instructions.withIndex()
                 .filter { (_, instruction) ->
                     instruction.getReference<MethodReference>()?.let { reference ->
-                        reference.definingClass == "LX/0ULN;" &&
-                            reference.name == "LIZ" &&
-                            reference.parameterTypes.firstOrNull() == "LX/0ULM;"
+                        reference.definingClass == stickerBinderClass &&
+                            reference.name == stickerBinderName &&
+                            reference.parameterTypes.firstOrNull() == stickerPreviewModelType
                     } == true
                 }
                 .map { it.index }
@@ -137,7 +141,7 @@ val downloadsPatch = bytecodePatch(
 
             if (bindCallIndices.isEmpty()) {
                 throw app.morphe.patcher.patch.PatchException(
-                    "Downloads: could not find 46.2.3 sticker preview bind calls.",
+                    "Downloads: could not find sticker preview bind calls.",
                 )
             }
 
